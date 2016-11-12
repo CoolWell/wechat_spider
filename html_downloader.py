@@ -1,27 +1,68 @@
 #!/usr/bin/env python2
 # -*- coding: UTF-8 -*-
+import requests
+import html_parser
 import urllib2
+from ruokuaicode import RClient
+from exceptions import *
+from PIL import Image
 from selenium import webdriver
-from selenium import common
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
-import selenium
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.action_chains import ActionChains
+import filecache
 import time
 import os
 import random
 import datetime
+import config
+import socket
 import sys
+try:
+    import StringIO
 
+
+    def readimg(content):
+        return Image.open(StringIO.StringIO(content))
+except ImportError:
+    import tempfile
+
+
+    def readimg(content):
+        f = tempfile.TemporaryFile()
+        f.write(content)
+        return Image.open(f)
 
 UA = "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36"
 PROXY = "123.56.238.200:8123"
 
 
+def test():
+    profile_dir = r"D:\MyChrome\Default"
+    # 设置请求头
+    # "Referer": "http://weixin.sogou.com"
+    chrome_options = webdriver.ChromeOptions()
+    chrome_options.add_argument("--user-data-dir=" + os.path.abspath(profile_dir))
+    PROXY = "123.56.238.200:8123"
+    # j = random.randint(0, len(proxys)-1)
+    # proxy = proxys[j]
+    chrome_options.add_argument('--proxy-server=%s' % PROXY)
+    # chrome_options.add_extension('')添加crx扩展
+    # service_args = ['--proxy=localhost:9050', '--proxy-type=socks5', ]
+    driver = webdriver.Chrome(r'C:\Python27\chromedriver', chrome_options=chrome_options)
+    driver.get('http://icanhazip.com')
+    driver.refresh()
+    print(driver.page_source)
+    driver.quit()
+
+
 class HtmlDownloader(object):
     def __init__(self):
+        self._ocr = RClient(config.dama_name, config.dama_pswd, config.dama_soft_id, config.dama_soft_key)
+        self._cache = filecache.WechatCache(config.cache_dir, 60 * 60)
+        self._session = self._cache.get(config.cache_session_name) if self._cache.get(
+            config.cache_session_name) else requests.session()
         self.cookie = self.maintain_cookies_ph()
         self.agents = [
             "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; SV1; AcooBrowser; .NET CLR 1.1.4322; .NET CLR 2.0.50727)",
@@ -42,24 +83,83 @@ class HtmlDownloader(object):
             "Opera/9.80 (Macintosh; Intel Mac OS X 10.6.8; U; fr) Presto/2.9.168 Version/11.52",
             ]
 
-    @staticmethod
-    def test():
-        profile_dir = r"D:\MyChrome\Default"
-        # 设置请求头
-        # "Referer": "http://weixin.sogou.com"
-        chrome_options = webdriver.ChromeOptions()
-        chrome_options.add_argument("--user-data-dir=" + os.path.abspath(profile_dir))
-        PROXY = "123.56.238.200:8123"
-        # j = random.randint(0, len(proxys)-1)
-        # proxy = proxys[j]
-        chrome_options.add_argument('--proxy-server=%s' % PROXY)
-        # chrome_options.add_extension('')添加crx扩展
-        # service_args = ['--proxy=localhost:9050', '--proxy-type=socks5', ]
-        driver = webdriver.Chrome(r'C:\Python27\chromedriver', chrome_options=chrome_options)
-        driver.get('http://icanhazip.com')
-        driver.refresh()
-        print(driver.page_source)
-        driver.quit()
+    def ocr4wechat(self, url):
+        # logger.debug('vcode appear, using _ocr_for_get_gzh_article_by_url_text')
+        timestr = str(time.time()).replace('.', '')
+        timever = timestr[0:13] + '.' + timestr[13:17]
+        codeurl = 'http://mp.weixin.qq.com/mp/verifycode?cert=' + timever
+        coder = self._session.get(codeurl)
+        if hasattr(self, '_ocr'):
+            result = self._ocr.create(coder.content, 2040)
+            img_code = result['Result']
+            print(img_code)
+        else:
+            im = readimg(coder.content)
+            im.show()
+            img_code = raw_input("please input code: ")
+        post_url = 'http://mp.weixin.qq.com/mp/verifycode'
+        post_data = {
+            'cert': timever,
+            'input': img_code
+        }
+        headers = {
+            "User-Agent": random.choice(self.agents),
+            'Host': 'mp.weixin.qq.com',
+            'Referer': url
+        }
+        rr = self._session.post(post_url, post_data, headers=headers)
+        print(rr.text)
+        remsg = eval(rr.text)
+        if remsg['ret'] != 0:
+            # logger.error('cannot verify get_gzh_article  because ' + remsg['errmsg'])
+            raise WechatSogouVcodeException('cannot verify wechat_code  because ' + remsg['errmsg'])
+        self._cache.set(config.cache_session_name, self._session)
+        # logger.debug('ocr ', remsg['errmsg'])
+
+    def download_list(self, url, name):
+        headers = {
+            "User-Agent": random.choice(self.agents),
+            "Referer": 'http://weixin.sogou.com/',
+            'Host': 'weixin.sogou.com',
+            'Cookie': random.choice(self.cookie)
+        }
+        req = urllib2.Request(url, headers=headers)
+        req.set_proxy(PROXY, 'http')
+        try:
+            response = urllib2.urlopen(req)
+            time.sleep(1)
+        except urllib2.URLError as e:
+            if hasattr(e, 'reason'):
+                #HTTPError and URLError all have reason attribute.
+                print 'We failed to reach a server.'
+                print 'Reason: ', e.reason
+            elif hasattr(e, 'code'):
+                #Only HTTPError has code attribute.
+                print 'The server couldn\'t fulfill the request.'
+                print 'Error code: ', e.code
+            with open(r'list_error.txt', 'a') as f:
+                f.write(name.encode('utf-8'))
+                f.write('\n')
+            return
+        try:
+            a = html_parser.HtmlParser.parse_list_url(response, name)
+        except AttributeError:
+            with open(r'list_error.txt', 'a') as f:
+                f.write(name.encode('utf-8'))
+                f.write('\n')
+            return
+        if a is not None:
+            return self.download(a, name, url)
+
+        # headers_weixin = {
+        #     "User-Agent": random.choice(self.agents),
+        #     "Referer": 'http://weixin.sogou.com/',
+        #     'Host': 'mp.weixin.qq.com',
+        # }
+        # req1 = urllib2.Request(a, headers=headers_weixin)
+        # response1 = urllib2.urlopen(req1)
+        # with open('c:\\a.html', 'a') as f:
+        #     f.write(response1.read())
 
     def download_list_ph(self, url, name):
         if url is None:
@@ -75,7 +175,8 @@ class HtmlDownloader(object):
         a = True
         try:
             driver = webdriver.PhantomJS(desired_capabilities=dcap, service_args=['--load-images=no',
-                                                                                  '--proxy=123.56.238.200:8123'])
+                                                                                  '--proxy=127.0.0.1:8087'])
+                                                                                  # '--proxy=123.56.238.200:8123'])
         except Exception as e:
             with open(r'list_error.txt', 'a') as f:
                 f.write(name.encode('utf-8'))
@@ -144,13 +245,15 @@ class HtmlDownloader(object):
                     if b is True:
                         print('page needs verify, stop the program')
                         print('the last weixinNUM is %s\n' % name)
+                        self.ocr4wechat(link)
+                        time.sleep(5)
                         with open(r'list_error.txt', 'a') as f:
                             f.write(name.encode('utf-8'))
                             f.write('\n')
-                        os.system('pause')
-
-                    html = driver1.page_source
-                    return link, html
+                        # os.system('pause')
+                    else:
+                        html = driver1.page_source
+                        return link, html
                 except Exception as e:
                     with open(r'list_error.txt', 'a') as f:
                         f.write(name.encode('utf-8'))
@@ -162,35 +265,53 @@ class HtmlDownloader(object):
                 finally:
                     driver1.quit()
 
-    def download_except(self, url, name):
-        profile_dir = r"D:\MyChrome\Default"
-        chrome_options1 = webdriver.ChromeOptions()
-        chrome_options1.add_argument("--user-data-dir=" + os.path.abspath(profile_dir))
-        driver1 = webdriver.Chrome(r'C:\Python27\chromedriver', chrome_options=chrome_options1)
-        driver1.get('http://weixin.sogou.com/')
-        driver1.implicitly_wait(5)
-        driver1.delete_all_cookies()
-        i = random.randint(0, 4)
-        for cookie in self.cookie[i]:
-            driver1.add_cookie(cookie)
-        driver1.get(url)
-        now_handle1 = driver1.current_window_handle
-        driver1.find_element_by_id('sogou_vr_11002301_box_0').click()
-        time.sleep(2)
-        all_handles1 = driver1.window_handles
-        for handle in all_handles1:
-            if handle != now_handle1:
-                driver1.switch_to.window(handle)  # 跳转到新的窗口
+    def download(self, link, name, url):
+        dcap = dict(DesiredCapabilities.PHANTOMJS)
+        dcap["phantomjs.page.settings.userAgent"] = (
+            random.choice(self.agents)
+        )
+        dcap["takesScreenshot"] = False
+        dcap["phantomjs.page.customHeaders.Cookie"] = random.choice(self.cookie)
+        # dcap["phantomjs.page.settings.resourceTimeout"] = ("1000")
         try:
-            WebDriverWait(driver1, 20).until(
-                EC.presence_of_element_located((By.CLASS_NAME, "weui_msg_card_hd"))
-            )
-        except:
-            time.sleep(2)
-            driver1.refresh()
-        html1 = driver1.page_source  # 网页动态加载后的代码
-        wechat_url1 = driver1.current_url
-        return wechat_url1, html1
+            driver1 = webdriver.PhantomJS(desired_capabilities=dcap, service_args=['--load-images=no'])
+        except Exception as e:
+            with open(r'list_error.txt', 'a') as f:
+                f.write(name.encode('utf-8'))
+                f.write('\n')
+            print(datetime.datetime.now())
+            print(url)
+            print(e)
+        else:
+            try:
+                driver1.set_page_load_timeout(20)
+                driver1.get(link)
+                b = True
+                try:
+                    driver1.find_element_by_class_name('page_verify')
+                except:
+                    b = False
+
+                if b is True:
+                    print('page needs verify, stop the program')
+                    print('the last weixinNUM is %s\n' % name)
+                    with open(r'list_error.txt', 'a') as f:
+                        f.write(name.encode('utf-8'))
+                        f.write('\n')
+                    os.system('pause')
+
+                html = driver1.page_source
+                return link, html
+            except Exception as e:
+                with open(r'list_error.txt', 'a') as f:
+                    f.write(name.encode('utf-8'))
+                    f.write('\n')
+                print(url)
+                print(datetime.datetime.now())
+                print(e)
+
+            finally:
+                driver1.quit()
 
     def is_text_exist(self, drive):
         try:
@@ -199,7 +320,7 @@ class HtmlDownloader(object):
         except:
             return False
 
-    def download_list(self, url, name):
+    def download_list_chrome(self, url, name):
         if url is None:
             return None
         profile_dir = r"D:\MyChrome\Default"
@@ -460,4 +581,7 @@ class HtmlDownloader(object):
 
 if __name__ == "__main__":
     a = HtmlDownloader()
-    a.download_list_ph("http://weixin.sogou.com/weixin?type=%d&query=%s" % (1, 'renmin'), u'renmin')
+    a.ocr4wechat('http://mp.weixin.qq.com/s?timestamp=1478687270&src=3&ver=1&signature=5RtOXxZ16P0x8hvN7sARkESooWCRi1F-'
+                 'AcdjyV1phiMF7EC8fCYB1STlGWMUeoUQtSoEFQC26jd-X-*3GiGa-ZwBJQBld54xrGpEc81g*kjGncNNXLgRkpw5WIoCO5T-KbO'
+                 'xjsRjYFvrvDaynu1I7vvIE9itjIEzCa77YZuMMyM=')
+    # a.download_list("http://weixin.sogou.com/weixin?type=%d&query=%s" % (1, 'renmin'), u'renmin')

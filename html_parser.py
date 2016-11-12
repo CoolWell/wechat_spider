@@ -9,16 +9,26 @@ from bs4 import BeautifulSoup
 
 class HtmlParser(object):
 
+    @staticmethod
+    def parse_list_url(response, name):
+        if response is None:
+            return
+        soup = BeautifulSoup(response, 'html.parser', from_encoding='utf-8')
+        if soup.find(id="noresult_part1_container"):
+            with open(r'no_wechat.txt', 'a') as f:
+                f.write(name.encode('utf-8'))
+                f.write('\n')
+                return
+        url = soup.find(id='sogou_vr_11002301_box_0').get('href')
+        return url
+
     def parse_list(self, page_url, html_cont):
         if page_url is None or html_cont is None:
             return
         soup = BeautifulSoup(html_cont, 'html.parser', from_encoding='utf-8')
 
         push_date = soup.find_all('div', class_="weui_msg_card_hd", limit=10)
-        #日期比较
-        # push_data = soup.find('p', class_= "weui_media_extra_info")
-        # push_data1 =str(datetime.datetime.strptime(push_data.get_text().encode('utf-8'), "%Y年%m月%d日"))[:10]
-        #print(push_data.get_text())
+        # 日期比较
         oneday = datetime.timedelta(days=1)
         today = str(datetime.date.today()-oneday)
         for a in push_date:
@@ -62,7 +72,7 @@ class HtmlParser(object):
         new_urls = []
         for link in links:
             if link != '':
-                full_url=urlparse.urljoin(page_url,link)
+                full_url=urlparse.urljoin(page_url, link)
                 new_urls.append(full_url)
 
         return new_urls
