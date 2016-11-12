@@ -89,7 +89,7 @@ def mk_dir(full_path):
         # 如果目录存在则不创建，并提示目录已存在
 
 
-def new_path(path, name):
+def new_path(name):
 
     full_path = path + r'\%s' % name
     mk_dir(full_path)
@@ -98,7 +98,7 @@ def new_path(path, name):
 
 def schedule(name):
 
-    full_path = new_path(path, name)
+    full_path = new_path(name)
     # type:表示搜索类型 querystring:表示公众号 i:表示网页页数1
     root_url = "http://weixin.sogou.com/weixin?type=%d&query=%s" % (1, name)
     oneday = datetime.timedelta(days=1)
@@ -122,8 +122,7 @@ def process(name):
     return 1
 
 
-def single_job(filename, path):
-    obj_spider = SpiderMain()
+def single_job(filename):
     with open(filename) as fout:
         for name in fout:
             if name[:3] == codecs.BOM_UTF8:
@@ -131,7 +130,7 @@ def single_job(filename, path):
             named = name.strip('.\n').decode('utf-8')
             print named
             schedule(named)
-    error_handle(path, obj_spider)
+    error_handle()
     os.remove('list_error.txt')
 
 
@@ -170,8 +169,7 @@ def list_multiprocess(filename):
     pool.join()
 
 
-
-def error_handle(path, obj_spider):
+def error_handle():
     if os.path.exists('list_error.txt'):
         print('start list_error download')
         with open('list_error.txt') as fout:
@@ -180,7 +178,7 @@ def error_handle(path, obj_spider):
                     name = name[3:]
                 named = name.strip('.\n').decode('utf-8')
                 print(named)
-                schedule(path, named, obj_spider)
+                schedule(named)
         print(datetime.datetime.now())
         print('all down')
 
@@ -188,10 +186,8 @@ def error_handle(path, obj_spider):
 def job_period():
     # ip_pool.ip_collect()
     list_handle('D:\\WechatList.txt')
-    error_handle(path, SpiderMain())
+    error_handle()
     os.remove('list_error.txt')
-
-
 
 
 if __name__ == "__main__":
