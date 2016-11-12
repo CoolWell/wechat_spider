@@ -73,32 +73,26 @@ class SpiderMain(object):
 obj_spider= SpiderMain()
 path = u'd:\\wechat_data1'
 
-def mkdir(path):
-    # 去除首位空格
-    path = path.strip()
-    # 去除尾部 \ 符号
-    path = path.rstrip("\\")
+
+def mk_dir(full_path):
+    full_path = full_path.strip()
+    full_path = full_path.rstrip("\\")
     # 判断路径是否存在
-    # 存在     True
-    # 不存在   False
-    isExists = os.path.exists(path)
-    # 判断结果
-    if not isExists:
+    is_exists = os.path.exists(full_path)
+    if not is_exists:
         # 如果不存在则创建目录
-        # print path.encode('gbk') + ' 创建成功'
         # 创建目录操作函数
-        os.makedirs(path)
+        os.makedirs(full_path)
         return True
     else:
         pass
         # 如果目录存在则不创建，并提示目录已存在
-        # print path.encode('gbk') + ' 目录已存在'
 
 
 def new_path(path, name):
 
     full_path = path + r'\%s' % name
-    mkdir(full_path)
+    mk_dir(full_path)
     return full_path
 
 
@@ -115,6 +109,7 @@ def schedule(name):
     obj_spider.craw(root_url, full_path, name)
     return 1
 
+
 def process(name):
     full_path = new_path(path, name)
     root_url = "http://weixin.sogou.com/weixin?type=%d&query=%s" % (1, name)
@@ -125,6 +120,7 @@ def process(name):
         return
     obj_spider.craw(root_url, full_path, name)
     return 1
+
 
 def single_job(filename, path):
     obj_spider = SpiderMain()
