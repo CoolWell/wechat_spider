@@ -4,7 +4,7 @@ import requests
 import html_parser
 import urllib2
 from ruokuaicode import RClient
-from exceptions import *
+import exceptions
 from PIL import Image
 from selenium import webdriver
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
@@ -36,7 +36,7 @@ except ImportError:
 
 UA = "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36"
 PROXY = "123.56.238.200:8123"
-
+PSIPHON = '127.0.0.1:54552'
 
 def test():
     profile_dir = r"D:\MyChrome\Default"
@@ -112,11 +112,17 @@ class HtmlDownloader(object):
         remsg = eval(rr.text)
         if remsg['ret'] != 0:
             # logger.error('cannot verify get_gzh_article  because ' + remsg['errmsg'])
-            raise WechatSogouVcodeException('cannot verify wechat_code  because ' + remsg['errmsg'])
+            raise exceptions.WechatSogouVcodeException('cannot verify wechat_code  because ' + remsg['errmsg'])
         self._cache.set(config.cache_session_name, self._session)
         # logger.debug('ocr ', remsg['errmsg'])
 
     def download_list(self, url, name):
+        '''
+        使用urllib2 获取微信公众号列表页的url
+        :param url:
+        :param name:
+        :return:
+        '''
         headers = {
             "User-Agent": random.choice(self.agents),
             "Referer": 'http://weixin.sogou.com/',
@@ -161,7 +167,69 @@ class HtmlDownloader(object):
         # with open('c:\\a.html', 'a') as f:
         #     f.write(response1.read())
 
+    def download(self, link, name, url):
+        """
+        下载指定公众号的文章列表
+        :param link:
+        :param name:
+        :param url:
+        :return:
+        """
+        dcap = dict(DesiredCapabilities.PHANTOMJS)
+        dcap["phantomjs.page.settings.userAgent"] = (
+            random.choice(self.agents)
+        )
+        dcap["takesScreenshot"] = False
+        dcap["phantomjs.page.customHeaders.Cookie"] = random.choice(self.cookie)
+        # dcap["phantomjs.page.settings.resourceTimeout"] = ("1000")
+        try:
+            driver1 = webdriver.PhantomJS(desired_capabilities=dcap, service_args=['--load-images=no', ])
+        except Exception as e:
+            with open(r'list_error.txt', 'a') as f:
+                f.write(name.encode('utf-8'))
+                f.write('\n')
+            print(datetime.datetime.now())
+            print(url)
+            print(e)
+        else:
+            try:
+                driver1.set_page_load_timeout(20)
+                driver1.get(link)
+                b = True
+                try:
+                    driver1.find_element_by_class_name('page_verify')
+                except:
+                    b = False
+
+                if b is True:
+                    print('page needs verify, stop the program')
+                    print('the last weixinNUM is %s\n' % name)
+                    self.ocr4wechat(link)
+                    time.sleep(5)
+                    with open(r'list_error.txt', 'a') as f:
+                        f.write(name.encode('utf-8'))
+                        f.write('\n')
+                else:
+                    html = driver1.page_source
+                    return link, html
+            except Exception as e:
+                with open(r'list_error.txt', 'a') as f:
+                    f.write(name.encode('utf-8'))
+                    f.write('\n')
+                print(url)
+                print(datetime.datetime.now())
+                print(e)
+
+            finally:
+                driver1.quit()
+
     def download_list_ph(self, url, name):
+        '''
+        使用phantomjs下载微信公众号文章列表
+        :param url:
+        :param name:
+        :return:
+        '''
         if url is None:
             return None
 
@@ -175,8 +243,7 @@ class HtmlDownloader(object):
         a = True
         try:
             driver = webdriver.PhantomJS(desired_capabilities=dcap, service_args=['--load-images=no',
-                                                                                  '--proxy=127.0.0.1:8087'])
-                                                                                  # '--proxy=123.56.238.200:8123'])
+                                                                                  '--proxy=123.56.238.200:8123'])
         except Exception as e:
             with open(r'list_error.txt', 'a') as f:
                 f.write(name.encode('utf-8'))
@@ -207,7 +274,7 @@ class HtmlDownloader(object):
                     # driver.get_screenshot_as_file(r'c:\pic.png')
                     driver.implicitly_wait(2)
                     # 代理连接过多导致失败
-                    button = driver.find_element_by_id('sogou_vr_11002301_box_0')
+                    button = driver.find_element_by_css_selector('a[uigs =\'main_toweixin_account_image_0\']')
                     link = button.get_attribute('href')
                     # with open(r'c:\WechatList.txt', 'a') as f:
                     #     f.write(name.encode('utf-8') + '\n')
@@ -265,61 +332,6 @@ class HtmlDownloader(object):
                 finally:
                     driver1.quit()
 
-    def download(self, link, name, url):
-        dcap = dict(DesiredCapabilities.PHANTOMJS)
-        dcap["phantomjs.page.settings.userAgent"] = (
-            random.choice(self.agents)
-        )
-        dcap["takesScreenshot"] = False
-        dcap["phantomjs.page.customHeaders.Cookie"] = random.choice(self.cookie)
-        # dcap["phantomjs.page.settings.resourceTimeout"] = ("1000")
-        try:
-            driver1 = webdriver.PhantomJS(desired_capabilities=dcap, service_args=['--load-images=no'])
-        except Exception as e:
-            with open(r'list_error.txt', 'a') as f:
-                f.write(name.encode('utf-8'))
-                f.write('\n')
-            print(datetime.datetime.now())
-            print(url)
-            print(e)
-        else:
-            try:
-                driver1.set_page_load_timeout(20)
-                driver1.get(link)
-                b = True
-                try:
-                    driver1.find_element_by_class_name('page_verify')
-                except:
-                    b = False
-
-                if b is True:
-                    print('page needs verify, stop the program')
-                    print('the last weixinNUM is %s\n' % name)
-                    with open(r'list_error.txt', 'a') as f:
-                        f.write(name.encode('utf-8'))
-                        f.write('\n')
-                    os.system('pause')
-
-                html = driver1.page_source
-                return link, html
-            except Exception as e:
-                with open(r'list_error.txt', 'a') as f:
-                    f.write(name.encode('utf-8'))
-                    f.write('\n')
-                print(url)
-                print(datetime.datetime.now())
-                print(e)
-
-            finally:
-                driver1.quit()
-
-    def is_text_exist(self, drive):
-        try:
-            drive.find_element_by_partial_link_text('too many requests')
-            return True
-        except:
-            return False
-
     def download_list_chrome(self, url, name):
         if url is None:
             return None
@@ -359,12 +371,6 @@ class HtmlDownloader(object):
                 except:
                     time.sleep(2)
                     driver.refresh()
-                # driver.implicitly_wait(2)
-                # driver.get('http://weixin.sogou.com/')
-                # driver.find_element_by_id('upquery').send_keys(name)
-                # time.sleep(1)
-                # driver.find_element_by_class_name('swz2').click()
-                # driver.implicitly_wait(5)
                 time.sleep(2)
                 # 判断是否存在这个公众号
                 try:
@@ -490,6 +496,11 @@ class HtmlDownloader(object):
                 # return response.read()
 
     def download_articles_ph(self, url):
+        '''
+        使用phantomjs下载文章
+        :param url: 文章链接
+        :return:
+        '''
         if url is None:
             return None
         dcap = dict(DesiredCapabilities.PHANTOMJS)
@@ -517,7 +528,7 @@ class HtmlDownloader(object):
             finally:
                 driver.quit()
 
-    def download_articles(self, url):
+    def download_articles_chrome(self, url):
         # service_args = ['--load-images=no', ]
         profile_dir = r"D:\MyChrome\Default"
         chrome_options = webdriver.ChromeOptions()
@@ -570,7 +581,7 @@ class HtmlDownloader(object):
         cookie = []
         # 获取5组cookies
         for i in range(5):
-            driver = webdriver.PhantomJS(desired_capabilities=dcap, service_args=['--load-images=no'])
+            driver = webdriver.PhantomJS(desired_capabilities=dcap, service_args=['--load-images=no', ])
             driver.get("http://weixin.sogou.com/")
             # 获得cookie信息
             cookie.append(driver.get_cookies())
@@ -581,7 +592,8 @@ class HtmlDownloader(object):
 
 if __name__ == "__main__":
     a = HtmlDownloader()
-    a.ocr4wechat('http://mp.weixin.qq.com/s?timestamp=1478687270&src=3&ver=1&signature=5RtOXxZ16P0x8hvN7sARkESooWCRi1F-'
-                 'AcdjyV1phiMF7EC8fCYB1STlGWMUeoUQtSoEFQC26jd-X-*3GiGa-ZwBJQBld54xrGpEc81g*kjGncNNXLgRkpw5WIoCO5T-KbO'
-                 'xjsRjYFvrvDaynu1I7vvIE9itjIEzCa77YZuMMyM=')
-    # a.download_list("http://weixin.sogou.com/weixin?type=%d&query=%s" % (1, 'renmin'), u'renmin')
+    # # a.ocr4wechat('http://mp.weixin.qq.com/s?timestamp=1478687270&src=3&ver=1&signature=5RtOXxZ16P0x8hvN7sARkESooWCRi1F-'
+    #              'AcdjyV1phiMF7EC8fCYB1STlGWMUeoUQtSoEFQC26jd-X-*3GiGa-ZwBJQBld54xrGpEc81g*kjGncNNXLgRkpw5WIoCO5T-KbO'
+    #              'xjsRjYFvrvDaynu1I7vvIE9itjIEzCa77YZuMMyM=')
+    # a.download_list_chrome("http://weixin.sogou.com/weixin?type=%d&query=%s" % (1, 'renmin'), u'renmin')
+

@@ -24,7 +24,7 @@ BeautifulSoup
 lxml
 """
 import httplib
-from spider import url_manager, html_downloader, html_outputer, html_parser
+import url_manager, html_downloader, html_outputer, html_parser
 import os
 import codecs
 import datetime
@@ -43,6 +43,13 @@ class SpiderMain(object):
         self.outputer = html_outputer.HtmlOutputer()
 
     def craw(self, root_url, full_path, name):
+        '''
+
+        :param root_url: 搜狗微信的搜索url
+        :param full_path: 存储的文件目录
+        :param name: 公众号的名称
+        :return:
+        '''
         self.urls.add_new_url(root_url)
         while self.urls.has_new_url():
                 new_url = self.urls.get_new_url()#从url列表中取出url
@@ -65,12 +72,97 @@ class SpiderMain(object):
                     data = self.parser.parse_article(html)#解析出文本
                     if data == None:
                         continue
-                    (title, date, content, readNum, praise_num, discuss_content, discuss_praise) = data
+                    (title, wname, date, content, readNum, praise_num, discuss_content, discuss_praise) = data
                     # self.urls.add_new_urls(new_urls)
                     # self.outputer.collect_data(data)
+                    self.outputer.output_mongodb(name, data)
                     self.outputer.output_file(full_path, data)
 
-obj_spider= SpiderMain()
+    def schedule(self, name):
+        full_path = new_path(name)
+        # type:表示搜索类型 querystring:表示公众号 i:表示网页页数1
+        root_url = "http://weixin.sogou.com/weixin?type=%d&query=%s" % (1, name)
+        oneday = datetime.timedelta(days=1)
+        today = str(datetime.date.today())
+        file_name = full_path+r'\%s.csv' % today
+        if os.path.exists(file_name):
+            return 0
+        self.craw(root_url, full_path, name)
+        return 1
+
+    def list_multiprocess(self, filename):
+        name_list = []
+        with open(filename) as fout:
+            for name in fout:
+                if name[:3] == codecs.BOM_UTF8:
+                    name = name[3:]
+                named = name.strip('.\n').decode('utf-8')
+                print named
+                name_list.append(named)
+
+        pool = ThreadPool(4)
+        results = pool.map(self.schedule, name_list)
+        pool.close()
+        pool.join()
+        print(results)
+        while os.path.exists('list_error.txt'):
+            print('start list_error download')
+            with open('list_error.txt',) as f:
+                names = f.readlines()
+            for i, name in enumerate(names):
+                names[i] = name.strip('\n')
+            os.remove('list_error.txt')
+            print(names)
+            pool = ThreadPool(4)
+            results = pool.map(self.schedule, names)
+            pool.close()
+            pool.join()
+            print(results)
+
+
+    def single_job(self, filename):
+        with open(filename) as fout:
+            for name in fout:
+                if name[:3] == codecs.BOM_UTF8:
+                    name = name[3:]
+                named = name.strip('.\n').decode('utf-8')
+                print named
+                self.schedule(named)
+        self.error_handle()
+        os.remove('list_error.txt')
+
+# 多线程的格式预处理
+    def list_handle(self, filename):
+        name_list = []
+        with open(filename) as fout:
+            for name in fout:
+                if name[:3] == codecs.BOM_UTF8:
+                    name = name[3:]
+                named = name.strip('.\n').decode('utf-8')
+                print named
+                name_list.append(named)
+        pool = threadpool.ThreadPool(4)
+        requests = threadpool.makeRequests(self.schedule, name_list)
+        [pool.putRequest(req) for req in requests]
+        pool.wait()
+        print('destory all threads')
+        pool.dismissWorkers(4, True)
+
+    def error_handle(self):
+        if os.path.exists('list_error.txt'):
+            print('start list_error download')
+            print(datetime.datetime.now())
+            with open('list_error.txt') as fout:
+                for name in fout:
+                    if name[:3] == codecs.BOM_UTF8:
+                        name = name[3:]
+                    named = name.strip('.\n').decode('utf-8')
+                    print(named)
+                    self.schedule(named)
+            print(datetime.datetime.now())
+            print('all down')
+
+
 path = u'd:\\wechat_data1'
 
 
@@ -96,98 +188,12 @@ def new_path(name):
     return full_path
 
 
-def schedule(name):
-
-    full_path = new_path(name)
-    # type:表示搜索类型 querystring:表示公众号 i:表示网页页数1
-    root_url = "http://weixin.sogou.com/weixin?type=%d&query=%s" % (1, name)
-    oneday = datetime.timedelta(days=1)
-    today = str(datetime.date.today())
-    file_name = full_path+r'\%s.csv' % today
-    if os.path.exists(file_name):
-        return
-    obj_spider.craw(root_url, full_path, name)
-    return 1
-
-
-def process(name):
-    full_path = new_path(path, name)
-    root_url = "http://weixin.sogou.com/weixin?type=%d&query=%s" % (1, name)
-    oneday = datetime.timedelta(days=1)
-    today = str(datetime.date.today())
-    file_name = full_path+r'\%s.csv' % today
-    if os.path.exists(file_name):
-        return
-    obj_spider.craw(root_url, full_path, name)
-    return 1
-
-
-def single_job(filename):
-    with open(filename) as fout:
-        for name in fout:
-            if name[:3] == codecs.BOM_UTF8:
-                name = name[3:]
-            named = name.strip('.\n').decode('utf-8')
-            print named
-            schedule(named)
-    error_handle()
-    os.remove('list_error.txt')
-
-
-# 多线程的格式预处理
-def list_handle(filename):
-    name_list = []
-    no = []
-    with open(filename) as fout:
-        for name in fout:
-            if name[:3] == codecs.BOM_UTF8:
-                name = name[3:]
-            named = name.strip('.\n').decode('utf-8')
-            print named
-            name_list.append(named)
-            no.append(None)
-    pool = threadpool.ThreadPool(4)
-    requests = threadpool.makeRequests(schedule, name_list)
-    [pool.putRequest(req) for req in requests]
-    pool.wait()
-
-
-def list_multiprocess(filename):
-    name_list = []
-
-    with open(filename) as fout:
-        for name in fout:
-            if name[:3] == codecs.BOM_UTF8:
-                name = name[3:]
-            named = name.strip('.\n').decode('utf-8')
-            print named
-            name_list.append(named)
-
-    pool = ThreadPool(4)
-    results = pool.map(process, name_list)
-    pool.close()
-    pool.join()
-
-
-def error_handle():
-    if os.path.exists('list_error.txt'):
-        print('start list_error download')
-        with open('list_error.txt') as fout:
-            for name in fout:
-                if name[:3] == codecs.BOM_UTF8:
-                    name = name[3:]
-                named = name.strip('.\n').decode('utf-8')
-                print(named)
-                schedule(named)
-        print(datetime.datetime.now())
-        print('all down')
-
-
 def job_period():
     # ip_pool.ip_collect()
-    list_handle('D:\\WechatList.txt')
-    error_handle()
-    os.remove('list_error.txt')
+    obj_spider = SpiderMain()
+    obj_spider.list_multiprocess('D:\\WechatList.txt')
+    # obj_spider.error_handle()
+    # os.remove('list_error.txt')
 
 
 if __name__ == "__main__":
@@ -197,10 +203,9 @@ if __name__ == "__main__":
     # a = sched.get_jobs()
     # print(a)
     # sched.start()
-    # os.remove('list_error.txt')
-    job_period()
 
+    job_period()
+    # error_handle()
     # list_multiprocess('D:\\WechatList.txt')
-    # single_job('D:\\WechatList.txt', u'd:\\wechat_data1')
 
 

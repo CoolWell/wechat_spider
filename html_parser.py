@@ -79,7 +79,6 @@ class HtmlParser(object):
 
     def _get_new_data(self, page_url, soup):
         res_data = {}
-
         # url
 
         res_data['url'] = page_url
@@ -118,29 +117,22 @@ class HtmlParser(object):
         soup = BeautifulSoup(html, 'html.parser', from_encoding='utf-8')
         # today = str(datetime.date.today())
         # post_date = soup.find('em', id='post-date' )
-        # print(post_date)
         # if post_date == today:
-        #get_text()返回的是unicode编码
+        # get_text()返回的是unicode编码
         try:
             title = soup.find('h2', class_='rich_media_title').get_text().strip(' \n').encode('utf-8')
-            # <em id="post-date" class="rich_media_meta rich_media_meta_text">2016-07-04</em>
+            wname = soup.find('a', id='post-user').get_text().encode('utf-8')
             date = soup.find('em', id='post-date').get_text().encode('utf-8')
             content = soup.find('div', class_='rich_media_content ').get_text().strip('\n').encode('utf-8')#文章内容
-            # <span id="sg_readNum3">2016</span>
-            # <span class="praise_num" id="sg_likeNum3">2</span>
             readNum = soup.find('span', id='sg_readNum3').get_text().encode('utf-8')
             praise_num = soup.find('span', id='sg_likeNum3').get_text().encode('utf-8')
-            # <div class="discuss_message_content">         我该庆幸不是年轻漂亮的女孩子吗<i class="icon_emotion_single icon11"></i>，另外，这个有这么难管吗         </div>
-            # <div class="discuss_message_content">         今天穿的短裙，差点要去宝龙，临时有事耽搁了，太可怕了         </div>
-            # <span class="praise_num">325 </span>
             discuss_list = soup.find_all('li', class_='discuss_item')
             discuss_content = [a.find('div', class_='discuss_message_content').get_text().strip().encode('utf-8') for a in discuss_list]
             discuss_praise = [a.find('span', class_='praise_num').get_text().encode('utf-8') for a in discuss_list]
-        except:
+        except Exception:
             return None
-        return title, date, content, readNum, praise_num, discuss_content, discuss_praise
-        # else:
-        #     return
+        return title, wname, date, content, readNum, praise_num, discuss_content, discuss_praise
+
 
 
 
