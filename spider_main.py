@@ -37,7 +37,7 @@ from multiprocessing.dummy import Pool as ThreadPool
 class SpiderMain(object):
 
     def __init__(self):
-        self.urls = url_manager.UrlManager()
+        # self.urls = url_manager.UrlManager()
         self.downloader = html_downloader.HtmlDownloader()
         self.parser = html_parser.HtmlParser()
         self.outputer = html_outputer.HtmlOutputer()
@@ -50,35 +50,38 @@ class SpiderMain(object):
         :param name: 公众号的名称
         :return:
         '''
-        self.urls.add_new_url(root_url)
-        while self.urls.has_new_url():
-                new_url = self.urls.get_new_url()#从url列表中取出url
-                html = None
-                try:
-                    html = self.downloader.download_list_ph(new_url, name)
-                except httplib.IncompleteRead as e:
-                    with open(r'list_error.txt', 'a') as f:
-                        f.write(name.encode('utf-8'))
-                        f.write('\n')
-                if html == None:
-                    break
-                wechat_url, html_cont = html
-                acticle_links = self.parser.parse_list(wechat_url, html_cont)
-                if acticle_links == None:
-                    break
+        # self.urls.add_new_url(root_url)
+        # while self.urls.has_new_url():
+        # new_url = self.urls.get_new_url()#从url列表中取出url
+        new_url = root_url
+        html = None
+        try:
+            html = self.downloader.download_list_ph(new_url, name)
+        except httplib.IncompleteRead as e:
+            with open(r'list_error.txt', 'a') as f:
+                f.write(name.encode('utf-8'))
+                f.write('\n')
+        if html == None:
+            return
+        wechat_url, html_cont = html
+        acticle_links = self.parser.parse_list(wechat_url, html_cont)
+        if acticle_links == None:
+            return
 
-                for link in acticle_links:
-                    html = self.downloader.download_articles_ph(link)
-                    data = self.parser.parse_article(html)#解析出文本
-                    if data == None:
-                        continue
-                    (title, wname, date, content, readNum, praise_num, discuss_content, discuss_praise) = data
-                    # self.urls.add_new_urls(new_urls)
-                    # self.outputer.collect_data(data)
-                    self.outputer.output_mongodb(name, data)
-                    self.outputer.output_file(full_path, data)
+        for link in acticle_links:
+            html = self.downloader.download_articles_ph(link)
+            data = self.parser.parse_article(html)#解析出文本
+            if data == None:
+                continue
+            (title, wname, date, content, readNum, praise_num, discuss_content, discuss_praise) = data
+            # self.urls.add_new_urls(new_urls)
+            # self.outputer.collect_data(data)
+            self.outputer.output_mongodb(name, data)
+            self.outputer.output_file(full_path, data)
 
     def schedule(self, name):
+        if name == '':
+            return 0
         full_path = new_path(name)
         # type:表示搜索类型 querystring:表示公众号 i:表示网页页数1
         root_url = "http://weixin.sogou.com/weixin?type=%d&query=%s" % (1, name)
@@ -107,17 +110,19 @@ class SpiderMain(object):
         print(results)
         while os.path.exists('list_error.txt'):
             print('start list_error download')
+            print(datetime.datetime.now())
             with open('list_error.txt',) as f:
                 names = f.readlines()
             for i, name in enumerate(names):
                 names[i] = name.strip('\n')
             os.remove('list_error.txt')
             print(names)
-            pool = ThreadPool(4)
-            results = pool.map(self.schedule, names)
-            pool.close()
-            pool.join()
+            pool1 = ThreadPool(8)
+            results = pool1.map(self.schedule, names)
+            pool1.close()
+            pool1.join()
             print(results)
+            print(datetime.datetime.now())
 
 
     def single_job(self, filename):
@@ -199,7 +204,7 @@ def job_period():
 if __name__ == "__main__":
     # logging.basicConfig()
     # sched = BlockingScheduler()
-    # sched.add_job(job_period, 'cron', start_date='2016-09-01', hour=0, minute=0, second=1, end_date='2016-11-30')
+    # sched.add_job(job_period, 'cron', start_date='2016-10-01', hour=0, minute=0, second=1, end_date='2016-12-30')
     # a = sched.get_jobs()
     # print(a)
     # sched.start()

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 __author__ = 'Passion'
-f = open(r'C:\Users\Passion\Desktop\5.txt')
-w = open(r'C:\Users\Passion\Desktop\55.txt', 'w')
+f = open(r'C:\Users\Passion\Desktop\8.txt')
+w = open(r'C:\Users\Passion\Desktop\88.txt', 'w')
 num=1
 line = f.readline()
 while (len(line) != 0):
