@@ -202,14 +202,14 @@ def job_period():
 
 
 if __name__ == "__main__":
-    # logging.basicConfig()
-    # sched = BlockingScheduler()
-    # sched.add_job(job_period, 'cron', start_date='2016-10-01', hour=0, minute=0, second=1, end_date='2016-12-30')
-    # a = sched.get_jobs()
-    # print(a)
-    # sched.start()
+    logging.basicConfig()
+    sched = BlockingScheduler()
+    sched.add_job(job_period, 'cron', start_date='2016-10-01', hour=0, minute=0, second=1, end_date='2016-12-30')
+    a = sched.get_jobs()
+    print(a)
+    sched.start()
 
-    job_period()
+    # job_period()
     # error_handle()
     # list_multiprocess('D:\\WechatList.txt')
 
