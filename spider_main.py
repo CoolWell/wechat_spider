@@ -207,7 +207,7 @@ def job_period():
 
 
 if __name__ == "__main__":
-    logging.basicConfig()
+    logging.basicConfig(filename='log.txt')
     sched = BlockingScheduler()
     sched.add_job(job_period, 'cron', start_date='2016-10-01', hour=0, minute=0, second=1, end_date='2016-12-30')
     a = sched.get_jobs()
