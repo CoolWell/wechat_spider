@@ -26,6 +26,7 @@ lxml
 import httplib
 import url_manager, html_downloader, html_outputer, html_parser
 import os
+import sys
 import codecs
 import datetime
 import logging
@@ -77,7 +78,7 @@ class SpiderMain(object):
             # self.urls.add_new_urls(new_urls)
             # self.outputer.collect_data(data)
             self.outputer.output_mongodb(name, data)
-            self.outputer.output_file(full_path, data)
+            # self.outputer.output_file(full_path, data)
 
     def schedule(self, name):
         if name == '':
@@ -207,15 +208,15 @@ def job_period():
 
 
 if __name__ == "__main__":
-    logging.basicConfig(filename='log.txt')
-    sched = BlockingScheduler()
-    sched.add_job(job_period, 'cron', start_date='2016-10-01', hour=0, minute=0, second=1, end_date='2016-12-30')
-    a = sched.get_jobs()
-    print(a)
-    sched.start()
+    file = open('log.txt', 'a')
+    sys.stdout = file
+    # logging.basicConfig()
+    # sched = BlockingScheduler()
+    # sched.add_job(job_period, 'cron', start_date='2016-10-01', hour=11, minute=8, second=1, end_date='2016-12-30')
+    # a = sched.get_jobs()
+    # print(a)
+    # sched.start()
 
-    # job_period()
-    # error_handle()
-    # list_multiprocess('D:\\WechatList.txt')
-
+    job_period()
+    file.close()
 
