@@ -104,11 +104,15 @@ class SpiderMain(object):
                 name_list.append(named)
 
         pool = ThreadPool(4)
-        results = pool.map(self.schedule, name_list)
+        # results = \
+        pool.map(self.schedule, name_list)
         pool.close()
         pool.join()
-        print(results)
+        # print(results)
+        number = 0
         while os.path.exists('list_error.txt'):
+            number = number+1
+            print ('the number for handling is %d' % number)
             print('start list_error download')
             print(datetime.datetime.now())
             with open('list_error.txt',) as f:
@@ -118,10 +122,11 @@ class SpiderMain(object):
             os.remove('list_error.txt')
             print(names)
             pool1 = ThreadPool(8)
-            results = pool1.map(self.schedule, names)
+            # results =
+            pool1.map(self.schedule, names)
             pool1.close()
             pool1.join()
-            print(results)
+            # print(results)
             print(datetime.datetime.now())
 
 
