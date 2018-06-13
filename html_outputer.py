@@ -12,9 +12,9 @@ class HtmlOutputer(object):
 
     def __init__(self):
         self.datas = {}
-        self.clinet = pymongo.MongoClient()
-        # self.addresses = ['223.3.77.26:20000', '223.3.83.196:20000', '223.3.90.150:20000']
-        # self.clinet = pymongo.MongoClient(self.addresses)
+        # self.clinet = pymongo.MongoClient()
+        self.addresses = ['223.3.77.124:20000', '223.3.77.125:20000', '223.3.77.134:20000']
+        self.clinet = pymongo.MongoClient(self.addresses)
         self.db = self.clinet['wechat_data']
 
     def collect_data(self, data):
@@ -81,15 +81,28 @@ class HtmlOutputer(object):
     def output_mongodb(self, name, data):
         col = ['title', 'name', 'date', 'content', 'readNum', 'praise_num', 'discuss_content', 'discuss_praise']
         collection = self.db[name]
-        item = {}
-        disscuss = []
-        for i in range(6):
-            item[col[i]] = data[i]
-        for i, e in enumerate(data[6], start=1):
-            ditem = {'discuss_content %s:' % str(i): e, 'discuss_praise %s:' % str(i): data[7][i-1]}
-            disscuss.append(ditem)
-        item['comment'] = disscuss
-        collection.insert(item)
+        one = collection.find_one({'title': data[0], 'date': data[2]})
+        col_time = datetime.datetime.now().__str__()
+        if one is not None:
+            collection.update_one({'_id': one['_id']}, {'$push': {'readNum': data[4],
+                                                                            'praise_num': data[5], 'col_time':
+                                                                                col_time}})
+        else:
+            item = {}
+            disscuss = []
+            for i in range(4):
+                item[col[i]] = data[i]
+            item['readNum'] = [data[4]]
+            item['praise_num'] = [data[5]]
+            if data[6]!=None:
+                for i, e in enumerate(data[6], start=1):
+                    ditem = {'discuss_content %s:' % str(i): e, 'discuss_praise %s:' % str(i): data[7][i-1]}
+                    disscuss.append(ditem)
+                item['comment'] = disscuss
+            item['col_time'] = [col_time]
+            collection.insert(item)
+
+
 
     def output_csv(self, full_path, data):
         today = str(datetime.date.today())
@@ -109,3 +122,29 @@ class HtmlOutputer(object):
         print data
         writer.writerow(data)
         csvfile.close()
+
+    def wechat_info(self, data):
+        # col = ['account_name', '_id', 'articles_ave_month', 'readnum_ave', 'fuction', 'identify']
+        col = ['account_name', '_id', 'articles_ave_month', 'fuction', 'identify']
+        collection = self.db['wechat_info']
+        one = collection.find_one({'_id': data[1]})
+        col_time = datetime.datetime.now().__str__()
+        if one is not None:
+            if data[2] != 'null':
+                collection.update_one({'_id': one['_id']}, {'$push': {'articles_ave_month': data[2], 'col_time':
+                                                                                col_time}})
+        else:
+            item = {}
+            item[col[0]] = data[0]
+            item[col[1]] = data[1]
+            item[col[3]] = data[3]
+            item[col[4]] = data[4]
+            if data[2] != 'null':
+                item[col[2]] = [data[2]]
+                # item[col[3]] = [data[3]]
+                item['col_time'] = [col_time]
+            collection.insert(item)
+
+
+if __name__ ==  '__main__':
+    a = HtmlOutputer()
